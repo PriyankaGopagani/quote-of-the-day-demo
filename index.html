@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Inspirational Quote</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --card: #111827;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --accent: #22d3ee;
+      --accent-2: #38bdf8;
+      --btn-bg: #1f2937;
+      --btn-hover: #374151;
+      --error: #fca5a5;
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 800px at 80% -10%, rgba(34,211,238,0.1), transparent 40%),
+                  radial-gradient(900px 700px at -10% 60%, rgba(56,189,248,0.08), transparent 35%),
+                  var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .app {
+      min-height: 100%;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+    }
+    .card {
+      width: min(760px, 92vw);
+      background: linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 16px;
+      padding: 28px 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+    }
+    .heading {
+      font-size: 14px;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      text-transform: uppercase;
+      margin: 0 0 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .heading .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 10px rgba(56,189,248,0.6);
+    }
+    blockquote {
+      margin: 12px 0 10px;
+      font-size: clamp(20px, 2.6vw, 32px);
+      line-height: 1.4;
+      font-weight: 600;
+    }
+    blockquote::before, blockquote::after {
+      content: "“";
+      color: var(--accent-2);
+      margin-right: 6px;
+      opacity: 0.9;
+    }
+    blockquote::after {
+      content: "”";
+      margin-left: 6px;
+      margin-right: 0;
+    }
+    .author {
+      margin-top: 8px;
+      font-size: 16px;
+      color: var(--muted);
+    }
+    .actions {
+      display: flex;
+      gap: 10px;
+      margin-top: 18px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      appearance: none;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: var(--btn-bg);
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 10px;
+      cursor: pointer;
+      font-size: 14px;
+      transition: transform 0.06s ease, background 0.2s ease, border-color 0.2s ease;
+    }
+    button:hover { background: var(--btn-hover); border-color: rgba(255,255,255,0.18); }
+    button:active { transform: translateY(1px); }
+    .loading {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.25);
+      border-top-color: var(--accent-2);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .error {
+      color: var(--error);
+      font-size: 14px;
+    }
+    .footer {
+      margin-top: 12px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+    .footer a {
+      color: var(--accent-2);
+      text-decoration: none;
+    }
+    .footer a:hover { text-decoration: underline; }
+    .sr-only {
+      position: absolute !important;
+      height: 1px; width: 1px;
+      overflow: hidden;
+      clip: rect(1px, 1px, 1px, 1px);
+      white-space: nowrap;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="card" aria-live="polite" aria-busy="true">
+      <div class="heading"><span class="dot" aria-hidden="true"></span> Daily Inspiration</div>
+      <blockquote id="quote">Loading inspirational quote…</blockquote>
+      <div class="author" id="author"></div>
+      <div class="actions">
+        <button id="refreshBtn" type="button" aria-label="Get a new quote">New Quote</button>
+        <span id="status" class="loading"><span class="spinner" aria-hidden="true"></span> Fetching…</span>
+        <span id="error" class="error" role="alert" style="display:none;"></span>
+      </div>
+      <div class="footer">
+        Quotes provided by <a href="https://api.quotable.io" target="_blank" rel="noreferrer noopener">Quotable</a>.
+      </div>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      const quoteEl = document.getElementById('quote');
+      const authorEl = document.getElementById('author');
+      const statusEl = document.getElementById('status');
+      const errorEl = document.getElementById('error');
+      const btn = document.getElementById('refreshBtn');
+      const card = document.querySelector('.card');
+
+      let controller = null;
+
+      async function fetchQuote() {
+        // Cancel any in-flight request
+        if (controller) controller.abort();
+        controller = new AbortController();
+
+        setLoading(true);
+        clearError();
+
+        try {
+          // Prefer inspirational; fall back to random if needed
+          const url = 'https://api.quotable.io/random?tags=inspirational';
+          const res = await fetch(url, { signal: controller.signal, headers: { 'Accept': 'application/json' } });
+          if (!res.ok) throw new Error('Failed to fetch quote. Status ' + res.status);
+          const data = await res.json();
+          renderQuote(data);
+        } catch (err) {
+          // Fallback to a non-filtered random quote if inspirational tag not available
+          if (!controller.signal.aborted) {
+            try {
+              const res2 = await fetch('https://api.quotable.io/random', { signal: controller.signal });
+              if (!res2.ok) throw new Error('Failed to fetch quote. Status ' + res2.status);
+              const data2 = await res2.json();
+              renderQuote(data2);
+            } catch (err2) {
+              showError('Could not load a quote right now. Please try again.');
+            }
+          }
+        } finally {
+          setLoading(false);
+        }
+      }
+
+      function renderQuote(data) {
+        const content = (data && data.content) ? data.content : 'Stay positive, work hard, make it happen.';
+        const author = data && data.author ? data.author : 'Unknown';
+        quoteEl.textContent = content;
+        authorEl.textContent = '— ' + author;
+        card.setAttribute('aria-busy', 'false');
+      }
+
+      function setLoading(isLoading) {
+        statusEl.style.display = isLoading ? 'inline-flex' : 'none';
+        btn.disabled = isLoading;
+        card.setAttribute('aria-busy', isLoading ? 'true' : 'false');
+      }
+
+      function showError(msg) {
+        errorEl.textContent = msg;
+        errorEl.style.display = 'inline';
+      }
+      function clearError() {
+        errorEl.textContent = '';
+        errorEl.style.display = 'none';
+      }
+
+      btn.addEventListener('click', fetchQuote);
+      // Initial load
+      fetchQuote();
+    })();
+  </script>
+</body>
+</html>
